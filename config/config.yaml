@@ -1,0 +1,21 @@
+# path for item data
+data_path: data/KDD19_with_url.json
+# path for prompt
+prompt_path: prompt
+# generation strategy
+strategy: reasoning-example
+# generate single step or full session
+mode: generate_session
+# number of agents
+num_agents: 1
+# temperature for LLM
+temperature: 0
+# maximum number of tokens for LLM
+max_token: 150
+# maximum number of tokens for search result
+max_result_token: 80
+# maximum number of tokens for webpage text content
+max_content_token: 1000
+# list of api keys for LLM API
+api_keys:
+  - sk-xxxxxxxxxxxxxxxxx
