@@ -177,6 +177,7 @@ class Task:
         """
         用于生成observation
         """
+        success = 1     # 爬虫成功爬取网页正文内容
         suffix_A = self.get_suffix_A(step)
         suffix_B = self.get_history(step)
 
@@ -190,6 +191,7 @@ class Task:
                 content = crawler.UrlCrawl(result['url'])
                 if content is None or content == '':
                     content = result['content']
+                    success = 0
 
                 suffix_obv = '对于最后一次搜索行动，点击结果页面如下：\n' + content.strip().replace("{", "").replace("}", "")[:substring_len] + '\n'
 
@@ -202,7 +204,8 @@ class Task:
                 generate_observation = self.agent.generate(prompt_str, prompt_dict)
 
                 # 第二次观察，爬取网页失败，使用SERP的内容
-                if '观察失败' in generate_observation:
+                if success == 1 and '观察失败' in generate_observation:
+                    success = 0
                     content = result['content']
 
                     suffix_obv = '对于最后一次搜索行动，点击结果页面如下：\n' + content.strip().replace("{", "").replace("}", "")[
@@ -220,6 +223,8 @@ class Task:
                 clean_observation = generate_observation[generate_observation.find("：") + 1:].strip()
                 if '观察失败' not in generate_observation:
                     observation += clean_observation + '\n'
+
+                result['success'] = success
 
         if observation == '':
             observation = '观察失败'

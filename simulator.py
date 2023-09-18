@@ -90,7 +90,7 @@ class Simulator:
                     self.config['mode'], actions)
         step = 0
         end = 0
-        while (not end) and (step < 6):
+        while (not end) and (step < 16):
             actions, end = task.generate_session(step, self.config['max_result_token'], self.config['max_content_token'])
             step += 1
 
