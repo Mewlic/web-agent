@@ -104,12 +104,11 @@ class Task:
 
             self.task[step // 2]['thought'] = clean_thought
 
-            if self.mode == 'generate_session':
-                self.actions.append({
-                    'type': 'thought',
-                    'content': clean_thought,
-                    'step': step // 2
-                })
+            self.actions.append({
+                'type': 'thought',
+                'content': clean_thought,
+                'step': step // 2
+            })
 
         suffix = self.get_history(step)
 
@@ -138,11 +137,11 @@ class Task:
 
                 self.task[step // 2]['results'] = results
 
-                self.actions.append({
-                    'type': 'results',
-                    'content': results,
-                    'step': step // 2
-                })
+            self.actions.append({
+                'type': 'results',
+                'content': self.task[step // 2]['results'][:10],
+                'step': step // 2
+            })
 
             prompt_results = '\n'
             num = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
@@ -177,7 +176,7 @@ class Task:
         """
         用于生成observation
         """
-        success = 1     # 爬虫成功爬取网页正文内容
+
         suffix_A = self.get_suffix_A(step)
         suffix_B = self.get_history(step)
 
@@ -187,6 +186,8 @@ class Task:
         observation = ''
         for rank, result in enumerate(self.task[step // 2]['results']):
             if rank in click_list:
+                success = 1  # 爬虫成功爬取网页正文内容
+
                 # 第一次观察
                 content = crawler.UrlCrawl(result['url'])
                 if content is None or content == '':
@@ -205,7 +206,6 @@ class Task:
 
                 # 第二次观察，爬取网页失败，使用SERP的内容
                 if success == 1 and '观察失败' in generate_observation:
-                    success = 0
                     content = result['content']
 
                     suffix_obv = '对于最后一次搜索行动，点击结果页面如下：\n' + content.strip().replace("{", "").replace("}", "")[
@@ -213,30 +213,27 @@ class Task:
 
                     prompt_str = self.prompt['background'] + suffix_A + suffix_B + suffix_obv + self.prompt[
                         'action_reasoning_observation_C']
-                    prompt_dict = dict(
-                        background=self.background[self.task_id]["background"],
-                        goal=self.background[self.task_id]["goal"],
-                        step=str(step // 2 + 1),
-                    )
+
                     generate_observation = self.agent.generate(prompt_str, prompt_dict)
 
                 clean_observation = generate_observation[generate_observation.find("：") + 1:].strip()
+
                 if '观察失败' not in generate_observation:
                     observation += clean_observation + '\n'
 
                 result['success'] = success
+                result['observation'] = clean_observation
 
         if observation == '':
             observation = '观察失败'
 
         self.task[step // 2]['observation'] = observation
 
-        if self.mode == 'generate_session':
-            self.actions.append({
-                'type': 'observation',
-                'content': observation,
-                'step': step // 2
-            })
+        self.actions.append({
+            'type': 'observation',
+            'content': observation,
+            'step': step // 2
+        })
 
     def generate_step(self, step: int, max_result_token: int, max_content_token: int) -> tuple:
         end = 0

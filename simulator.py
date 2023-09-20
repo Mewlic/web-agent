@@ -64,7 +64,7 @@ class Simulator:
             if task_id in ['8']:
                 actions_onetask = []
                 task = Task(task_id, self.data.prompt, self.data.background, agent, self.config['strategy'], self.config['mode'],
-                            actions_onetask, agent.data.users[user_id][task_id])
+                            actions_onetask, agent.data.users[user_id][task_id]['content'])
                 step = 0
                 end = 0
                 while not end:
