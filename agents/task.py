@@ -73,7 +73,7 @@ class Task:
         elif self.strategy in ['reasoning-summary']:
             suffix = self.prompt['reasoning-summary_A']
         elif self.strategy in ['multi_level-example']:
-            suffix = self.prompt['direct-example_A'] if step % 2 == 0 else self.prompt['multi_level-example_Al']
+            suffix = self.prompt['direct-example_A'] if step % 2 == 0 else self.prompt['multi_level-example_A']
         elif self.strategy in ['multi_level-summary']:
             suffix = self.prompt['direct-summary_A'] if step % 2 == 0 else self.prompt['multi_level-summary_A']
         elif self.strategy in ['reasoning-multi_level-example']:
@@ -135,19 +135,20 @@ class Task:
                 crawler = Crawler()
                 results = crawler.SearchResultCrawl(query)
 
-                self.task[step // 2]['results'] = results
+                self.task[step // 2]['results'] = results[:10]
 
             self.actions.append({
                 'type': 'results',
-                'content': self.task[step // 2]['results'][:10],
+                'content': self.task[step // 2]['results'],
                 'step': step // 2
             })
 
             prompt_results = '\n'
             num = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+
             for rank, result in enumerate(self.task[step // 2]['results'][:10]):
-                prompt_results += '第' + num[rank] + '条：' + result['content'].strip().replace("{", "").replace("}", "")[
-                                                           :substring_len] + '；\n'
+                content = (result['title'] + '   ' + result['abstract']).replace("{", "").replace("}", "")[:substring_len]
+                prompt_results += '第' + num[rank] + '条：' + content + '；\n'
             suffix = '搜索结果如下：' + prompt_results + self.prompt['click_C']
         else:
             suffix = ''
@@ -176,7 +177,6 @@ class Task:
         """
         用于生成observation
         """
-
         suffix_A = self.get_suffix_A(step)
         suffix_B = self.get_history(step)
 
@@ -184,17 +184,20 @@ class Task:
 
         crawler = Crawler()
         observation = ''
-        for rank, result in enumerate(self.task[step // 2]['results']):
+        show_num = 0
+        for rank, result in enumerate(self.task[step // 2]['results'][:10]):
             if rank in click_list:
-                success = 1  # 爬虫成功爬取网页正文内容
+                num = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 
-                # 第一次观察
+                success = 1
+
                 content = crawler.UrlCrawl(result['url'])
                 if content is None or content == '':
-                    content = result['content']
+                    content = result['title'] + '   ' + result['abstract']
                     success = 0
 
-                suffix_obv = '对于最后一次搜索行动，点击结果页面如下：\n' + content.strip().replace("{", "").replace("}", "")[:substring_len] + '\n'
+                suffix_obv = '对于最后一次搜索行动，你点击了标题：' + result['title'] + \
+                             '。该标题的正文内容如下：\n' + content.strip().replace("{", "").replace("}", "")[:substring_len] + '\n'
 
                 prompt_str = self.prompt['background'] + suffix_A + suffix_B + suffix_obv + self.prompt['action_reasoning_observation_C']
                 prompt_dict = dict(
@@ -203,29 +206,12 @@ class Task:
                     step=str(step // 2 + 1),
                 )
                 generate_observation = self.agent.generate(prompt_str, prompt_dict)
-
-                # 第二次观察，爬取网页失败，使用SERP的内容
-                if success == 1 and '观察失败' in generate_observation:
-                    content = result['content']
-
-                    suffix_obv = '对于最后一次搜索行动，点击结果页面如下：\n' + content.strip().replace("{", "").replace("}", "")[
-                                                            :substring_len] + '\n'
-
-                    prompt_str = self.prompt['background'] + suffix_A + suffix_B + suffix_obv + self.prompt[
-                        'action_reasoning_observation_C']
-
-                    generate_observation = self.agent.generate(prompt_str, prompt_dict)
-
                 clean_observation = generate_observation[generate_observation.find("：") + 1:].strip()
 
-                if '观察失败' not in generate_observation:
-                    observation += clean_observation + '\n'
-
+                observation += '第' + num[show_num] + '条：' + clean_observation + '\n'
+                show_num += 1
                 result['success'] = success
                 result['observation'] = clean_observation
-
-        if observation == '':
-            observation = '观察失败'
 
         self.task[step // 2]['observation'] = observation
 
@@ -283,8 +269,6 @@ class Task:
             original_result = [int(num) for num in original_result_str.split(',')]
 
             start_index = generate_result.find("：") + 1
-            if start_index == 0:
-                start_index = generate_result.find(":") + 1
             generate_result = generate_result[start_index:].strip()
             generate_result = [int(num) - 1 for num in generate_result.split(",") if num.strip() != ""]
 
@@ -336,8 +320,6 @@ class Task:
 
         elif step % 2 == 1:
             start_index = generate_result.find("：") + 1
-            if start_index == 0:
-                start_index = generate_result.find(":") + 1
             generate_result = [int(num) - 1 for num in generate_result[start_index:].strip().split(",") if num.strip() != ""]
             self.task[step // 2]['clicks'] = ','.join(str(num) for num in generate_result)
 

@@ -20,7 +20,7 @@ import math
 from agents.data import Data
 from agents.recagent import RecAgent
 from agents.task import Task
-
+from agents.task2 import Task2
 
 class Simulator:
     """
@@ -54,39 +54,40 @@ class Simulator:
             vectorstore=vectorstore, other_score_keys=["importance"], k=15
         )
 
-    def generate_step(self, actions_old=None) -> dict:
+    def generate_step(self, data_path, actions_old=None):
         agent = self.agents[0]
         actions_allusers = actions_old if actions_old else dict()
-        user_id = '2012012180'
 
-        actions_alltasks = dict()
-        for task_id in agent.data.users[user_id]:
-            if task_id in ['8']:
+        for user_id in agent.data.users:
+            if user_id in actions_allusers or user_id in ['1701110210']:
+                continue
+            actions_alltasks = dict()
+            for task_id in agent.data.users[user_id]:
+                if task_id not in ['1', '4', '7', '8', '10']:
+                    continue
                 actions_onetask = []
-                task = Task(task_id, self.data.prompt, self.data.background, agent, self.config['strategy'], self.config['mode'],
-                            actions_onetask, agent.data.users[user_id][task_id]['content'])
+                task = Task2(task_id, self.data.prompt, self.data.background, agent, self.config['strategy'],
+                            self.config['mode'], actions_onetask, agent.data.users[user_id][task_id]['content'])
                 step = 0
                 end = 0
                 while not end:
-                    actions_onetask, end = task.generate_step(step, self.config['max_result_token'], self.config['max_content_token'])
+                    actions_onetask, end = task.generate_step(step, self.config['max_result_token'],
+                                                              self.config['max_content_token'])
                     step += 1
                 actions_alltasks[task_id] = actions_onetask
-
-        if user_id not in actions_allusers:
             actions_allusers[user_id] = actions_alltasks
-        else:
-            actions_allusers[user_id].update(actions_alltasks)
 
-        return actions_allusers
+            with open(data_path, "w", encoding='utf-8') as file:
+                json.dump(actions_allusers, file, default=lambda o: o.__dict__, indent=4, ensure_ascii=False)
 
     def generate_session(self, actions_old=None):
         agent = self.agents[0]
         actions_all = actions_old if actions_old else dict()
 
-        task_id = '12'
+        task_id = '3'
 
         actions = []
-        task = Task(task_id, self.data.prompt, self.data.background, agent, self.config['strategy'],
+        task = Task2(task_id, self.data.prompt, self.data.background, agent, self.config['strategy'],
                     self.config['mode'], actions)
         step = 0
         end = 0
@@ -142,12 +143,9 @@ class Simulator:
             if os.path.exists(data_path):
                 with open(data_path, "r", encoding='utf-8') as file:
                     actions_old = json.load(file)
-                actions = self.generate_step(actions_old)
+                self.generate_step(data_path, actions_old)
             else:
-                actions = self.generate_step()
-
-            with open(data_path, "w", encoding='utf-8') as file:
-                json.dump(actions, file, default=lambda o: o.__dict__, indent=4, ensure_ascii=False)
+                self.generate_step(data_path)
 
         elif self.config['mode'] == 'generate_session':
             data_path = os.path.join(folder_path, 'actions.json')
@@ -180,7 +178,7 @@ def main():
     optional_mode = ['generate_step', 'generate_session']
     optional_strategy = ['direct-example', 'direct-summary', 'reasoning-example', 'reasoning-summary',
                          'multi_level-example', 'multi_level-summary', 'reasoning-multi_level-example',
-                         'reasoning-multi_level-summary']
+                         'reasoning-multi_level-summary', 'direct-none', 'reasoning-none']
 
     if config['mode'] not in optional_mode or config['strategy'] not in optional_strategy:
         print('策略错误')

@@ -14,9 +14,19 @@ class CxExtractor:
     __indexDistribution = []
     # __blocksWidth = 3
 
-    def __init__(self, threshold=86, blocksWidth=3):
+    def __init__(self, threshold=86, blocksWidth=4):
         self.__blocksWidth = blocksWidth
         self.__threshold = threshold
+
+    def dynamics_getText(self, content):
+        result = self.getText(content)
+        while result == '':
+            self.__threshold -= 20
+            result = self.getText(content)
+
+            if self.__threshold <= 80:
+                break
+        return result
 
     def getText(self, content):
         if self.__text:
@@ -24,8 +34,10 @@ class CxExtractor:
         lines = content.split('\n')
         for i in range(len(lines)):
             # lines[i] = lines[i].replace("\\n", "")
-            if lines[i] == ' ' or lines[i] == '\n':
-                lines[i] = ''
+            # if lines[i] == ' ' or lines[i] == '\n':
+            #     lines[i] = ''
+            lines[i] = lines[i].strip()
+
         self.__indexDistribution.clear()
         for i in range(0, len(lines) - self.__blocksWidth):
             wordsNum = 0
@@ -33,28 +45,29 @@ class CxExtractor:
                 lines[j] = lines[j].replace("\\s", "")
                 wordsNum += len(lines[j])
             self.__indexDistribution.append(wordsNum)
+
         start = -1
         end = -1
         boolstart = False
         boolend = False
         for i in range(len(self.__indexDistribution) - 1):
-            if(self.__indexDistribution[i] > self.__threshold and (not boolstart)):
-                if (self.__indexDistribution[i + 1] != 0 or self.__indexDistribution[i + 2] != 0 or self.__indexDistribution[i + 3] != 0):
+            if self.__indexDistribution[i] > self.__threshold and (not boolstart):
+                if self.__indexDistribution[i + 1] != 0 or self.__indexDistribution[i + 2] != 0 or self.__indexDistribution[i + 3] != 0:
                     boolstart = True
                     start = i
                     continue
-            if (boolstart):
-                if (self.__indexDistribution[i] == 0 or self.__indexDistribution[i + 1] == 0):
+            if boolstart:
+                if self.__indexDistribution[i] == 0 or self.__indexDistribution[i + 1] == 0:
                     end = i
                     boolend = True
             tmp = []
-            if(boolend):
+            if boolend:
                 for ii in range(start, end + 1):
-                    if(len(lines[ii]) < 5):
+                    if len(lines[ii]) < 5:
                         continue
                     tmp.append(lines[ii] + "\n")
                 str = "".join(list(tmp))
-                if ("Copyright" in str or "版权所有" in str):
+                if "Copyright" in str or "版权所有" in str:
                     continue
                 self.__text.append(str)
                 boolstart = boolend = False
@@ -173,7 +186,6 @@ class Crawler:
                         'url': url,
                         'abstract': abstract,
                         'rank': rank,
-                        'content': title + ' ' + abstract
                     })
                     rank += 1
 
@@ -186,20 +198,35 @@ class Crawler:
             return
 
     def UrlCrawl(self, url):
-        cx = CxExtractor(threshold=186)
+        cx = CxExtractor(threshold=200)
         try:
             request = urllib.request.Request(url=url, headers=self.headers)
             html = urllib.request.urlopen(request, timeout=20).read()
+            soup = BeautifulSoup(html, 'html.parser')
 
             result = chardet.detect(html)
+
             encoding = result['encoding']
+            encoding = 'utf-8' if 'Windows' in encoding else encoding
+            html_decoded = html.decode(encoding, 'ignore')
+            content = cx.filter_tags(html_decoded)
 
-            html = html.decode(encoding, 'ignore')
+            # 行块分布函数的通用网页正文抽取算法
+            s = cx.dynamics_getText(content)
 
-            content = cx.filter_tags(html)
-            s = cx.getText(content)
+            if s.strip() == '':
+                meta_tag = soup.find('meta', attrs={'name': 'description'})
+                if meta_tag:
+                    s = meta_tag.get('content')
+
             return s
 
         except Exception as e:
             print(e)
             return
+
+
+if __name__ == "__main__":
+    cx = Crawler()
+
+    print(cx.UrlCrawl('https://wenku.baidu.com/aggs/f5837c1252d380eb62946dec.html?fr=sogou'))
